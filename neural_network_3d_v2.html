@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>3D Neural Network Visualizer — MNIST</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --cyan:#00f5d4;--purple:#7b2ff7;--pink:#f72585;--gold:#ffd60a;--green:#06d6a0;
+  --bg:#05050f;--panel:rgba(8,8,22,0.92);--border:rgba(123,47,247,0.22);
+  --text:#e0e0ff;--muted:#666;--soft:#aaa;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;height:100vh;width:100vw;}
+canvas{display:block;}
+
+/* ══ WELCOME MODAL ══ */
+#welcome-overlay{
+  position:fixed;inset:0;background:rgba(2,2,12,0.96);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;backdrop-filter:blur(6px);
+}
+#welcome-box{
+  background:linear-gradient(145deg,#0a0a20,#10102a);
+  border:1px solid var(--border);border-radius:20px;
+  padding:40px 44px;max-width:580px;width:90%;
+  box-shadow:0 0 80px rgba(123,47,247,0.25);
+  animation:slideUp 0.5s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+#welcome-box h2{
+  font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;
+  background:linear-gradient(90deg,var(--cyan),var(--purple),var(--pink));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:6px;
+}
+#welcome-box .subtitle{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:0.5px;}
+.welcome-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
+.wcard{
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+  border-radius:12px;padding:14px;
+}
+.wcard-icon{font-size:20px;margin-bottom:6px;}
+.wcard-title{font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:4px;letter-spacing:0.5px;}
+.wcard-text{font-size:11px;color:#777;line-height:1.5;}
+.welcome-steps{margin-bottom:24px;}
+.welcome-steps h4{font-size:10px;letter-spacing:2px;color:var(--purple);margin-bottom:10px;text-transform:uppercase;}
+.wstep{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px;}
+.wstep-num{
+  width:20px;height:20px;border-radius:50%;background:var(--purple);
+  color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.wstep-text{font-size:12px;color:#888;line-height:1.5;}
+.wstep-text strong{color:var(--text);}
+#btn-start{
+  width:100%;padding:14px;background:linear-gradient(135deg,var(--purple),#a040ff);
+  border:none;border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;
+  font-size:13px;font-weight:700;cursor:pointer;letter-spacing:2px;
+  transition:all 0.2s;
+}
+#btn-start:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(123,47,247,0.4);}
+
+/* ══ TOP BAR ══ */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:52px;
+  background:rgba(5,5,15,0.88);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;z-index:100;
+}
+#topbar h1{
+  font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:2px;white-space:nowrap;
+}
+.tag{font-size:9px;padding:3px 9px;border-radius:20px;letter-spacing:1px;border:1px solid;}
+.tag-cyan{color:var(--cyan);border-color:var(--cyan);background:rgba(0,245,212,0.07);}
+.tag-purple{color:var(--purple);border-color:var(--purple);background:rgba(123,47,247,0.07);}
+#epoch-display{margin-left:auto;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;}
+#epoch-display span{color:var(--cyan);}
+#btn-help{
+  background:rgba(123,47,247,0.15);border:1px solid var(--border);
+  color:var(--purple);border-radius:8px;padding:5px 12px;
+  font-size:11px;cursor:pointer;font-family:'Space Mono',monospace;
+  transition:all 0.2s;white-space:nowrap;
+}
+#btn-help:hover{background:rgba(123,47,247,0.3);}
+
+/* ══ 3D CANVAS ══ */
+#canvas-container{position:fixed;inset:0;cursor:grab;}
+#canvas-container:active{cursor:grabbing;}
+
+/* ══ PANEL SHARED ══ */
+.panel-card{
+  background:var(--panel);backdrop-filter:blur(12px);
+  border:1px solid var(--border);border-radius:12px;padding:14px 15px;
+}
+.panel-title{font-size:9px;letter-spacing:2px;color:var(--purple);margin-bottom:10px;text-transform:uppercase;font-family:'Space Mono',monospace;}
+
+/* ══ LEFT PANEL ══ */
+#left-panel{
+  position:fixed;left:14px;top:66px;width:195px;
+  display:flex;flex-direction:column;gap:8px;z-index:100;
+  max-height:calc(100vh - 80px);overflow-y:auto;scrollbar-width:none;
+}
+#left-panel::-webkit-scrollbar{display:none;}
+
+/* metric */
+.metric{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.metric-label{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+.metric-val{font-size:12px;font-weight:700;font-family:'Space Mono',monospace;}
+.tip-icon{
+  width:13px;height:13px;border-radius:50%;background:rgba(123,47,247,0.2);
+  color:var(--purple);font-size:8px;display:inline-flex;align-items:center;justify-content:center;
+  cursor:help;border:1px solid var(--border);flex-shrink:0;
+}
+/* tooltip */
+.has-tip{position:relative;}
+.has-tip .tooltip{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(100% + 8px);
+  background:#0d0d25;border:1px solid var(--border);border-radius:8px;
+  padding:8px 10px;width:170px;font-size:10px;color:#aaa;line-height:1.5;
+  pointer-events:none;opacity:0;transition:opacity 0.2s;z-index:300;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5);
+}
+.has-tip:hover .tooltip{opacity:1;}
+.tooltip strong{color:var(--cyan);}
+
+/* progress */
+.progress-wrap{margin:5px 0 8px;}
+.progress-label{font-size:9px;color:#444;margin-bottom:3px;display:flex;justify-content:space-between;}
+.progress-bar{height:3px;background:#111;border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:2px;transition:width 0.4s ease;}
+
+/* buttons */
+.ctrl-btn{
+  width:100%;padding:8px;border-radius:8px;border:1px solid;
+  font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;
+  transition:all 0.2s;letter-spacing:0.5px;margin-bottom:5px;
+}
+.btn-primary{background:var(--purple);border-color:var(--purple);color:#fff;}
+.btn-primary:hover{background:#9040ff;}
+.btn-primary:disabled{background:#1a1030;color:#444;cursor:not-allowed;}
+.btn-secondary{background:transparent;border-color:#222;color:#666;}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan);}
+.slider-row{display:flex;align-items:center;gap:8px;margin-top:3px;}
+.slider-row label{font-size:9px;color:#444;white-space:nowrap;font-family:'Space Mono',monospace;}
+input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:#1a1a3a;border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--purple);cursor:pointer;}
+
+/* digit */
+#digit-canvas-wrap{text-align:center;}
+#digit-canvas{border:1px solid #1a1a3a;border-radius:6px;image-rendering:pixelated;width:110px;height:110px;}
+.digit-label{font-size:9px;color:#444;margin-top:4px;font-family:'Space Mono',monospace;}
+
+/* output bars */
+.out-bar-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.out-digit{font-size:9px;color:#444;width:10px;font-family:'Space Mono',monospace;}
+.out-bar-bg{flex:1;height:5px;background:#0d0d20;border-radius:3px;overflow:hidden;}
+.out-bar-fill{height:100%;border-radius:3px;transition:width 0.3s ease;background:var(--cyan);}
+.out-bar-fill.winner{background:var(--gold);}
+.out-pct{font-size:9px;color:#444;width:28px;text-align:right;font-family:'Space Mono',monospace;}
+
+/* legend */
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend-text{font-size:9px;color:#666;}
+
+/* loss chart */
+#loss-chart{width:100%;height:55px;margin-top:6px;}
+
+/* pulse */
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.pulse{animation:pulse 1s infinite;}
+
+/* ══ RIGHT PANEL — Node Info ══ */
+#info-panel{
+  position:fixed;right:14px;top:66px;width:235px;z-index:100;
+  transition:opacity 0.25s,transform 0.25s;
+  max-height:calc(100vh - 80px);overflow-y:auto;scrollbar-width:thin;
+}
+#info-panel::-webkit-scrollbar{width:3px;}
+#info-panel::-webkit-scrollbar-thumb{background:var(--purple);border-radius:2px;}
+#info-panel.hidden{opacity:0;pointer-events:none;transform:translateX(12px);}
+.info-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.info-name{font-family:'Orbitron',sans-serif;font-size:12px;color:var(--cyan);}
+#close-info{background:none;border:none;color:#444;cursor:pointer;font-size:16px;line-height:1;}
+#close-info:hover{color:var(--pink);}
+.info-section{margin-bottom:12px;}
+.info-section-title{font-size:8px;letter-spacing:2px;color:#333;text-transform:uppercase;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #0d0d25;}
+.info-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;gap:8px;}
+.info-key{font-size:9px;color:#555;flex-shrink:0;}
+.info-val{font-size:10px;color:var(--text);text-align:right;font-family:'Space Mono',monospace;word-break:break-all;}
+.info-explain{font-size:10px;color:#777;line-height:1.55;background:rgba(0,0,0,0.3);border-radius:6px;padding:8px;margin-bottom:8px;}
+.info-explain strong{color:var(--cyan);}
+.act-bar-wrap{margin:8px 0;}
+.act-bar-label{font-size:9px;color:#444;margin-bottom:3px;display:flex;justify-content:space-between;}
+.act-bar-bg{height:6px;background:#0d0d20;border-radius:3px;overflow:hidden;}
+.act-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--purple),var(--cyan));transition:width 0.4s;}
+.weights-list{max-height:90px;overflow-y:auto;font-size:9px;color:#444;scrollbar-width:thin;}
+.weight-item{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #0a0a18;}
+.weight-pos{color:#00aa77;}
+.weight-neg{color:#aa0033;}
+.analogy-box{
+  background:rgba(0,245,212,0.04);border:1px solid rgba(0,245,212,0.12);
+  border-radius:8px;padding:9px;margin-top:8px;
+  font-size:10px;color:#668;line-height:1.5;
+}
+.analogy-box strong{color:var(--cyan);}
+
+/* ══ LEARN PANEL ══ */
+#learn-panel{
+  position:fixed;right:14px;top:66px;width:270px;
+  max-height:calc(100vh - 80px);overflow-y:auto;scrollbar-width:thin;
+  z-index:100;transition:opacity 0.25s,transform 0.25s;
+}
+#learn-panel::-webkit-scrollbar{width:3px;}
+#learn-panel::-webkit-scrollbar-thumb{background:var(--purple);border-radius:2px;}
+#learn-panel.hidden{opacity:0;pointer-events:none;transform:translateX(12px);}
+.learn-tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid #0d0d25;}
+.ltab{
+  flex:1;padding:7px;background:none;border:none;
+  font-size:9px;font-family:'Space Mono',monospace;color:#444;
+  cursor:pointer;letter-spacing:1px;text-transform:uppercase;
+  border-bottom:2px solid transparent;transition:all 0.2s;
+}
+.ltab.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+.ltab-content{display:none;}
+.ltab-content.active{display:block;}
+.concept-card{
+  background:rgba(255,255,255,0.02);border:1px solid #0d0d28;
+  border-radius:10px;padding:12px;margin-bottom:8px;
+}
+.concept-card h4{font-size:11px;font-weight:600;margin-bottom:5px;}
+.concept-card p{font-size:10px;color:#777;line-height:1.6;}
+.concept-card .formula{
+  font-family:'Space Mono',monospace;font-size:10px;
+  background:rgba(0,0,0,0.4);border-radius:5px;padding:5px 8px;
+  margin:6px 0;color:var(--cyan);
+}
+.concept-card .analogy{font-size:10px;color:#558;font-style:italic;margin-top:5px;border-left:2px solid #222;padding-left:8px;}
+.glossary-item{padding:8px 0;border-bottom:1px solid #0a0a18;}
+.glossary-term{font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px;}
+.glossary-def{font-size:10px;color:#777;line-height:1.5;}
+.phase-card{
+  border-radius:10px;padding:12px;margin-bottom:8px;
+  border-left:3px solid;
+}
+
+/* ══ TOAST ══ */
+#toast{
+  position:fixed;bottom:38px;left:50%;transform:translateX(-50%);
+  background:rgba(123,47,247,0.92);color:#fff;font-size:11px;
+  padding:8px 20px;border-radius:20px;opacity:0;transition:opacity 0.3s;
+  pointer-events:none;z-index:500;letter-spacing:0.5px;white-space:nowrap;
+  font-family:'Space Mono',monospace;
+}
+#hint{
+  position:fixed;bottom:12px;left:50%;transform:translateX(-50%);
+  font-size:9px;color:#222;letter-spacing:2px;pointer-events:none;
+  font-family:'Space Mono',monospace;
+}
+
+/* ══ PHASE BANNER ══ */
+#phase-banner{
+  position:fixed;top:62px;left:50%;transform:translateX(-50%);
+  background:rgba(5,5,15,0.9);border:1px solid var(--border);
+  border-radius:20px;padding:6px 18px;font-size:10px;
+  font-family:'Space Mono',monospace;color:var(--purple);
+  z-index:100;transition:opacity 0.5s;opacity:0;letter-spacing:1px;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════ WELCOME MODAL ══ -->
+<div id="welcome-overlay">
+  <div id="welcome-box">
+    <h2>NEUROVIS 3D</h2>
+    <div class="subtitle">An interactive 3D Neural Network — built for beginners & explorers</div>
+
+    <div class="welcome-cards">
+      <div class="wcard">
+        <div class="wcard-icon">🧠</div>
+        <div class="wcard-title">What is this?</div>
+        <div class="wcard-text">A live 3D brain-like network that learns to recognize handwritten digits (0–9) — just like how a real AI is trained.</div>
+      </div>
+      <div class="wcard">
+        <div class="wcard-icon">👁️</div>
+        <div class="wcard-title">What will I see?</div>
+        <div class="wcard-text">Neurons glowing, connections lighting up, and a loss graph dropping — showing the AI getting smarter in real time.</div>
+      </div>
+      <div class="wcard">
+        <div class="wcard-icon">🖱️</div>
+        <div class="wcard-title">Can I interact?</div>
+        <div class="wcard-text">Yes! Drag to rotate the 3D network. Scroll to zoom. Click any glowing ball (neuron) to see what it's doing inside.</div>
+      </div>
+      <div class="wcard">
+        <div class="wcard-icon">📚</div>
+        <div class="wcard-title">Never done ML?</div>
+        <div class="wcard-text">No worries. Hit the <strong style="color:var(--cyan)">? LEARN</strong> button anytime for plain-English explanations of every concept.</div>
+      </div>
+    </div>
+
+    <div class="welcome-steps">
+      <h4>🚀 How to get started</h4>
+      <div class="wstep"><div class="wstep-num">1</div><div class="wstep-text"><strong>Press ▶ START TRAINING</strong> — watch the network begin learning from handwritten digit images.</div></div>
+      <div class="wstep"><div class="wstep-num">2</div><div class="wstep-text"><strong>Drag the 3D model</strong> to rotate it. The glowing balls are neurons, the lines between them carry information.</div></div>
+      <div class="wstep"><div class="wstep-num">3</div><div class="wstep-text"><strong>Click any neuron</strong> — a panel opens with a plain-English explanation of what that neuron is doing.</div></div>
+      <div class="wstep"><div class="wstep-num">4</div><div class="wstep-text"><strong>Watch the Loss go down</strong> — that means the network is learning! Hit <strong>? LEARN</strong> to understand why.</div></div>
+    </div>
+
+    <button id="btn-start">ENTER THE NETWORK →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ TOP BAR ══ -->
+<div id="topbar">
+  <h1>NEUROVIS 3D</h1>
+  <span class="tag tag-cyan">MNIST</span>
+  <span class="tag tag-purple">LIVE TRAINING</span>
+  <div id="epoch-display">EPOCH <span id="ep-num">0</span>/<span id="ep-total">20</span> &nbsp;BATCH <span id="batch-num">0</span></div>
+  <button id="btn-help">? LEARN</button>
+</div>
+
+<div id="phase-banner">⚡ FORWARD PASS</div>
+
+<!-- 3D CANVAS -->
+<div id="canvas-container"><canvas id="three-canvas"></canvas></div>
+
+<!-- ══════════════════════════════════════ LEFT PANEL ══ -->
+<div id="left-panel">
+
+  <!-- Metrics -->
+  <div class="panel-card">
+    <div class="panel-title">⚡ Live Metrics</div>
+
+    <div class="metric has-tip">
+      <span class="metric-label">
+        <span class="tip-icon">?</span> Loss
+      </span>
+      <span class="metric-val" id="loss-val" style="color:var(--pink)">2.3026</span>
+      <div class="tooltip"><strong>Loss</strong> = how wrong the network is. Starts high (~2.3), drops toward 0 as it learns. Like a score — lower is better.</div>
+    </div>
+
+    <div class="metric has-tip">
+      <span class="metric-label">
+        <span class="tip-icon">?</span> Accuracy
+      </span>
+      <span class="metric-val" id="acc-val" style="color:var(--cyan)">10.0%</span>
+      <div class="tooltip"><strong>Accuracy</strong> = % of digits it guesses correctly. Starts at ~10% (random chance for 10 classes) and climbs toward 90%+ as it trains.</div>
+    </div>
+
+    <div class="metric has-tip">
+      <span class="metric-label">
+        <span class="tip-icon">?</span> Learn Rate
+      </span>
+      <span class="metric-val" style="color:var(--gold)">0.0010</span>
+      <div class="tooltip"><strong>Learning Rate</strong> controls how big each weight update step is. Too high → unstable. Too low → learns too slowly. 0.001 is a good default.</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Training Progress</span><span id="prog-pct">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%;background:linear-gradient(90deg,var(--purple),var(--cyan))"></div></div>
+    </div>
+
+    <canvas id="loss-chart"></canvas>
+    <div style="font-size:8px;color:#333;margin-top:3px;font-family:'Space Mono',monospace;">↑ loss curve — watch it fall as network learns</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="panel-card">
+    <div class="panel-title">🎮 Controls</div>
+    <button class="ctrl-btn btn-primary" id="btn-train">▶ START TRAINING</button>
+    <button class="ctrl-btn btn-secondary" id="btn-reset">↺ RESET WEIGHTS</button>
+    <button class="ctrl-btn btn-secondary" id="btn-sample">⟳ NEW DIGIT SAMPLE</button>
+    <div class="slider-row">
+      <label>SPEED</label>
+      <input type="range" id="speed-slider" min="1" max="10" value="5"/>
+    </div>
+    <div style="font-size:8px;color:#333;margin-top:6px;line-height:1.5;">
+      Drag 3D model to rotate · Scroll to zoom · Click neurons to inspect
+    </div>
+  </div>
+
+  <!-- Input Digit -->
+  <div class="panel-card">
+    <div class="panel-title">📷 Input — What the Network Sees</div>
+    <div id="digit-canvas-wrap">
+      <canvas id="digit-canvas" width="28" height="28"></canvas>
+      <div class="digit-label" id="digit-true-label">TRUE LABEL: —</div>
+    </div>
+    <div style="font-size:9px;color:#444;margin-top:6px;line-height:1.5;">
+      Each image is 28×28 = 784 pixels. Each pixel becomes one number (0–1) fed into the network.
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="panel-card">
+    <div class="panel-title">🎯 Network Output — Probabilities</div>
+    <div id="output-bars"></div>
+    <div style="margin-top:6px;font-size:9px;color:#555;">
+      PREDICTION: <span id="pred-label" style="color:var(--gold);font-size:13px;font-family:'Space Mono',monospace;">—</span>
+    </div>
+    <div style="font-size:9px;color:#333;margin-top:4px;line-height:1.5;">
+      Gold bar = network's best guess. All bars should add to 100%.
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="panel-card">
+    <div class="panel-title">🗺 Layer Map</div>
+    <div class="legend-row"><div class="legend-dot" style="background:#00f5d4"></div><div class="legend-text"><strong style="color:#00f5d4">Input</strong> — pixel values (16 shown of 784)</div></div>
+    <div class="legend-row"><div class="legend-dot" style="background:#7b2ff7"></div><div class="legend-text"><strong style="color:#7b2ff7">Hidden 1</strong> — detects edges & strokes</div></div>
+    <div class="legend-row"><div class="legend-dot" style="background:#f72585"></div><div class="legend-text"><strong style="color:#f72585">Hidden 2</strong> — recognizes digit parts</div></div>
+    <div class="legend-row"><div class="legend-dot" style="background:#ffd60a"></div><div class="legend-text"><strong style="color:#ffd60a">Output</strong> — one neuron per digit 0–9</div></div>
+    <div style="margin-top:6px;font-size:9px;color:#333;line-height:1.5;"><strong style="color:#00f5d4">Cyan lines</strong> = positive weights &nbsp; <strong style="color:#f72585">Pink lines</strong> = negative weights</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════ NODE INFO PANEL ══ -->
+<div id="info-panel" class="panel-card hidden">
+  <div class="info-header">
+    <span class="info-name" id="info-title">Neuron Info</span>
+    <button id="close-info">✕</button>
+  </div>
+
+  <!-- Plain English first -->
+  <div class="info-explain" id="info-explain-text">Click a neuron to learn what it does.</div>
+
+  <div class="info-section">
+    <div class="info-section-title">📊 Live Values</div>
+    <div class="info-row has-tip">
+      <span class="info-key">Layer<div class="tooltip"><strong>Layer</strong> — which group this neuron belongs to. Data flows left→right through layers.</div></span>
+      <span class="info-val" id="info-layer">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Neuron #</span>
+      <span class="info-val" id="info-index">—</span>
+    </div>
+    <div class="info-row has-tip">
+      <span class="info-key">Activation <div class="tooltip"><strong>Activation</strong> — this neuron's output after ReLU/Softmax. Range 0–1. Higher = more "excited". Think of it as how strongly this neuron fired.</div></span>
+      <span class="info-val" id="info-activation">—</span>
+    </div>
+    <div class="info-row has-tip">
+      <span class="info-key">Pre-act (z) <div class="tooltip"><strong>z (pre-activation)</strong> — the raw sum before the activation function. Formula: z = Σ(weight × input) + bias. Can be any number, positive or negative.</div></span>
+      <span class="info-val" id="info-z">—</span>
+    </div>
+    <div class="info-row has-tip">
+      <span class="info-key">Bias <div class="tooltip"><strong>Bias</strong> — a learned offset added before activation. Lets the neuron fire even if all inputs are zero. Like a default starting value.</div></span>
+      <span class="info-val" id="info-bias">—</span>
+    </div>
+    <div class="info-row has-tip">
+      <span class="info-key">Gradient <div class="tooltip"><strong>Gradient</strong> — how much this neuron's value should change to reduce the loss. Used in backpropagation to update weights. Large gradient = big update needed.</div></span>
+      <span class="info-val" id="info-grad">—</span>
+    </div>
+
+    <div class="act-bar-wrap">
+      <div class="act-bar-label"><span>Activation Strength</span><span id="act-pct-label">0%</span></div>
+      <div class="act-bar-bg"><div class="act-bar-fill" id="info-act-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <div class="info-section-title">🔗 Incoming Weights (sample)</div>
+    <div style="font-size:9px;color:#445;margin-bottom:5px;">Green = positive (activating) · Red = negative (suppressing)</div>
+    <div class="weights-list" id="weights-list"></div>
+  </div>
+
+  <div class="analogy-box" id="info-analogy"></div>
+</div>
+
+<!-- ══════════════════════════════════════ LEARN PANEL ══ -->
+<div id="learn-panel" class="panel-card hidden">
+  <div class="info-header">
+    <span class="info-name">📚 LEARN</span>
+    <button id="close-learn">✕</button>
+  </div>
+
+  <div class="learn-tabs">
+    <button class="ltab active" data-tab="concepts">Concepts</button>
+    <button class="ltab" data-tab="howit">How It Works</button>
+    <button class="ltab" data-tab="glossary">Glossary</button>
+  </div>
+
+  <!-- CONCEPTS TAB -->
+  <div class="ltab-content active" id="tab-concepts">
+
+    <div class="concept-card">
+      <h4 style="color:var(--cyan)">🧠 What is a Neural Network?</h4>
+      <p>A neural network is a program loosely inspired by the human brain. It's made of layers of tiny units called <strong>neurons</strong>. Each neuron takes in numbers, does a small calculation, and passes a result forward.</p>
+      <div class="analogy">Think of it like a factory assembly line — each station does one small job, and together they produce a finished product (a digit prediction).</div>
+    </div>
+
+    <div class="concept-card">
+      <h4 style="color:var(--purple)">⚪ What is a Neuron?</h4>
+      <p>Each glowing sphere in the 3D view is a neuron. It receives signals from the previous layer, multiplies each by a <strong>weight</strong>, adds a <strong>bias</strong>, then squashes the result through an <strong>activation function</strong>.</p>
+      <div class="formula">output = ReLU( Σ(weight × input) + bias )</div>
+      <div class="analogy">Think of a neuron like a voting judge — it weighs all evidence (inputs), has a personal bias, then decides how strongly to "vote" (activate).</div>
+    </div>
+
+    <div class="concept-card">
+      <h4 style="color:#ffd60a)">🔗 What are Weights?</h4>
+      <p>Each connection line has a <strong>weight</strong> — a number that says how important that connection is. Positive weights amplify a signal. Negative weights suppress it. Training = finding the right weights.</p>
+      <div class="formula">Connection strength = weight × activation</div>
+      <div class="analogy">Like a dial on a mixing board — turning it up amplifies that channel, turning it down mutes it.</div>
+    </div>
+
+    <div class="concept-card">
+      <h4 style="color:var(--pink)">📉 What is Loss?</h4>
+      <p>Loss (also called error) measures how wrong the network's prediction is. If the network says digit "3" has 2% probability but the true answer is "3", that's a big mistake → high loss. As training progresses, loss drops.</p>
+      <div class="formula">Loss = -log( probability of correct class )</div>
+      <div class="analogy">Like a golf score — lower is better. The training goal is to minimize it.</div>
+    </div>
+
+    <div class="concept-card">
+      <h4 style="color:var(--green)">⚡ What is an Activation Function?</h4>
+      <p>After summing inputs, we pass the result through an activation function to add <strong>non-linearity</strong> — without it, stacking layers would be no better than one layer.</p>
+      <div class="formula">ReLU(x) = max(0, x)  ← hidden layers</div>
+      <div class="formula">Softmax(x) = eˣ / Σeˣ  ← output layer</div>
+      <div class="analogy">ReLU is like a light switch — negative? Off. Positive? Let it through. Softmax converts raw scores into probabilities that sum to 100%.</div>
+    </div>
+
+  </div>
+
+  <!-- HOW IT WORKS TAB -->
+  <div class="ltab-content" id="tab-howit">
+
+    <div class="phase-card" style="background:rgba(0,245,212,0.04);border-color:var(--cyan);">
+      <h4 style="color:var(--cyan);font-size:11px;margin-bottom:6px;">Step 1 — Forward Pass</h4>
+      <p style="font-size:10px;color:#777;line-height:1.6;">A digit image (28×28 pixels = 784 numbers) enters the Input layer. Each neuron in every layer computes a weighted sum of its inputs, applies ReLU, and passes results to the next layer. The final Output layer runs Softmax to produce probabilities for digits 0–9.</p>
+      <div style="font-size:9px;color:#333;margin-top:6px;">INPUT → HIDDEN 1 → HIDDEN 2 → OUTPUT (probabilities)</div>
+    </div>
+
+    <div class="phase-card" style="background:rgba(247,37,133,0.04);border-color:var(--pink);">
+      <h4 style="color:var(--pink);font-size:11px;margin-bottom:6px;">Step 2 — Compute Loss</h4>
+      <p style="font-size:10px;color:#777;line-height:1.6;">Compare the network's output (e.g. "I think it's a 7 with 15% confidence") against the true label (it's actually a 3). Cross-entropy loss punishes confident wrong answers harshly. A perfect prediction = loss near 0.</p>
+    </div>
+
+    <div class="phase-card" style="background:rgba(123,47,247,0.04);border-color:var(--purple);">
+      <h4 style="color:var(--purple);font-size:11px;margin-bottom:6px;">Step 3 — Backpropagation</h4>
+      <p style="font-size:10px;color:#777;line-height:1.6;">The error travels <em>backwards</em> through the network. Using calculus (chain rule), we compute: "how much did each weight contribute to the error?" These are called <strong>gradients</strong>. The glow you see on neurons reflects gradient magnitude.</p>
+    </div>
+
+    <div class="phase-card" style="background:rgba(255,214,10,0.04);border-color:var(--gold);">
+      <h4 style="color:var(--gold);font-size:11px;margin-bottom:6px;">Step 4 — Weight Update (Gradient Descent)</h4>
+      <p style="font-size:10px;color:#777;line-height:1.6;">Every weight is nudged slightly in the direction that reduces loss. The size of the nudge = gradient × learning rate. Do this thousands of times and the network converges to weights that classify digits correctly.</p>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold);background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:6px;">
+        new_weight = old_weight − lr × gradient
+      </div>
+    </div>
+
+    <div class="concept-card" style="margin-top:4px;">
+      <h4 style="color:var(--cyan);">🔁 Epoch vs Batch</h4>
+      <p>A <strong>batch</strong> is a small group of training images processed together (e.g. 64 images). An <strong>epoch</strong> is one full pass through all training data. Training for 20 epochs means the network sees every image 20 times, refining weights each time.</p>
+    </div>
+
+  </div>
+
+  <!-- GLOSSARY TAB -->
+  <div class="ltab-content" id="tab-glossary">
+    <div id="glossary-list"></div>
+  </div>
+
+</div>
+
+<div id="hint">DRAG TO ROTATE · SCROLL TO ZOOM · CLICK NEURONS FOR INFO</div>
+<div id="toast"></div>
+<div id="phase-banner">⚡ FORWARD PASS</div>
+
+<script>
+// ═══════════════════════ GLOSSARY DATA ═══════════════════════
+const GLOSSARY = [
+  {term:"Neuron",def:"The basic unit of a neural network. Receives inputs, multiplies by weights, adds a bias, applies an activation function, outputs a single number."},
+  {term:"Weight",def:"A learnable number on each connection. Controls how strongly one neuron influences another. The network learns by adjusting weights to minimize loss."},
+  {term:"Bias",def:"An extra learnable number added to a neuron's input sum. Lets the neuron activate even when all inputs are zero. Gives the network more flexibility."},
+  {term:"Activation",def:"The output of a neuron after applying the activation function. Represents how 'excited' the neuron is. Range is 0–1 for ReLU-clamped neurons."},
+  {term:"ReLU",def:"Rectified Linear Unit. Activation function: output = max(0, x). Keeps positive values, kills negatives. Simple and effective. Used in hidden layers."},
+  {term:"Softmax",def:"Activation function used in the output layer. Converts raw scores into probabilities that sum to 100%. The neuron with highest probability = prediction."},
+  {term:"Loss",def:"A number measuring how wrong the network is. Computed by comparing predictions to true labels. Goal of training: minimize loss. Lower = better."},
+  {term:"Cross-Entropy",def:"The specific loss function used here. Formula: -log(probability of correct class). Heavily penalizes confident wrong predictions."},
+  {term:"Gradient",def:"The direction and magnitude of change needed in a weight to reduce loss. Computed by backpropagation. Used to update weights via gradient descent."},
+  {term:"Backpropagation",def:"Algorithm that computes gradients by flowing the error signal backwards through the network using the chain rule of calculus."},
+  {term:"Gradient Descent",def:"Optimization method. Repeatedly update each weight: weight = weight - learning_rate × gradient. Eventually converges to a low-loss solution."},
+  {term:"Learning Rate",def:"A small number (e.g. 0.001) controlling how big each weight update step is. Too high = unstable. Too low = very slow. Adam optimizer adapts it automatically."},
+  {term:"Epoch",def:"One complete pass through the entire training dataset. Training for 20 epochs means every image is seen and learned from 20 times."},
+  {term:"Batch",def:"A small subset of training examples processed together before one weight update. Batch size = 64 is common. Balances speed and stability."},
+  {term:"Forward Pass",def:"Data flowing left-to-right through the network to produce a prediction. Input → Hidden layers → Output. Happens once per training step."},
+  {term:"Layer",def:"A group of neurons that all receive input from the same previous layer and send output to the same next layer. This network has 4 layers."},
+  {term:"MNIST",def:"A famous dataset of 70,000 handwritten digit images (28×28 pixels), labeled 0–9. The 'Hello World' of deep learning. A well-trained model achieves ~99% accuracy."},
+  {term:"Accuracy",def:"Percentage of predictions that are correct. Starts near 10% (random chance for 10 classes) and rises toward 90%+ as training progresses."},
+  {term:"Overfitting",def:"When the network memorizes training data but fails on new data. Prevented using dropout, regularization, and using a validation set."},
+  {term:"Parameters",def:"All the learnable values in the network — all weights + all biases combined. This network has ~1,000 parameters. GPT-4 has ~1.8 trillion."},
+];
+
+document.getElementById('glossary-list').innerHTML = GLOSSARY.map(g => `
+  <div class="glossary-item">
+    <div class="glossary-term">${g.term}</div>
+    <div class="glossary-def">${g.def}</div>
+  </div>`).join('');
+
+// ═══════════════════════ NEURAL NET SIMULATION ═══════════════════════
+const LAYERS = [16, 16, 12, 10];
+const LAYER_NAMES = ["Input", "Hidden 1", "Hidden 2", "Output"];
+const LAYER_COLORS = [0x00f5d4, 0x7b2ff7, 0xf72585, 0xffd60a];
+
+const LAYER_EXPLAINS = [
+  (ni) => `This is <strong>Input Neuron #${ni}</strong> in the Input Layer.<br><br>It holds one pixel brightness value from the handwritten digit image. The 28×28 image gives 784 pixels — we show 16 here for clarity.<br><br>Values range from 0 (black pixel) to 1 (white pixel). No computation happens here — it just passes raw data forward.`,
+  (ni) => `This is <strong>Hidden Neuron #${ni}</strong> in Hidden Layer 1.<br><br>This neuron looks at all 16 input pixels simultaneously. It learned to detect low-level patterns like horizontal strokes, vertical edges, or diagonal lines.<br><br>Its output (activation) is computed as ReLU(Σ weights×inputs + bias). If activation is high, this neuron "fired" — it detected its pattern.`,
+  (ni) => `This is <strong>Hidden Neuron #${ni}</strong> in Hidden Layer 2.<br><br>It receives signals from Hidden Layer 1 and learns to recognize higher-level features — like a loop at the top of a "6", or the crossing in a "4".<br><br>Each deeper layer builds on the previous, creating increasingly abstract representations.`,
+  (ni) => `This is <strong>Output Neuron #${ni}</strong> — it represents the digit "<strong>${ni}</strong>".<br><br>After Softmax, its activation = the network's confidence that the input image is a "${ni}". All 10 output neurons' values sum to 1.0 (100%).<br><br>The neuron with the highest value is the network's final prediction.`,
+];
+
+const LAYER_ANALOGIES = [
+  "🎨 <strong>Analogy:</strong> Like the retina of an eye — it just receives raw light signals and sends them to the brain for processing.",
+  "🔍 <strong>Analogy:</strong> Like a simple filter in an Instagram photo editor — each neuron responds to one specific low-level pattern.",
+  "🧩 <strong>Analogy:</strong> Like a detective combining clues — it takes simple features from Layer 1 and assembles them into recognizable digit parts.",
+  "🗳️ <strong>Analogy:</strong> Like 10 candidates in an election — each neuron campaigns for 'this is MY digit', and Softmax makes the votes sum to 100%.",
+];
+
+function rand(a,b){return Math.random()*(b-a)+a;}
+function relu(x){return Math.max(0,x);}
+function softmax(arr){const m=Math.max(...arr);const ex=arr.map(x=>Math.exp(x-m));const s=ex.reduce((a,b)=>a+b,0);return ex.map(x=>x/s);}
+
+class NeuralNet {
+  constructor(){this.reset();}
+  reset(){
+    this.weights=[];this.biases=[];
+    this.activations=LAYERS.map(n=>new Array(n).fill(0));
+    this.zValues=LAYERS.map(n=>new Array(n).fill(0));
+    this.gradients=LAYERS.map(n=>new Array(n).fill(0));
+    for(let l=0;l<LAYERS.length-1;l++){
+      const sc=Math.sqrt(2/LAYERS[l]);
+      this.weights.push(Array.from({length:LAYERS[l+1]},()=>Array.from({length:LAYERS[l]},()=>rand(-sc,sc))));
+      this.biases.push(new Array(LAYERS[l+1]).fill(0));
+    }
+    this.loss=Math.log(10);this.accuracy=10;this.epoch=0;this.batch=0;
+  }
+  forward(input){
+    this.activations[0]=input.slice(0,LAYERS[0]);
+    this.zValues[0]=this.activations[0].slice();
+    for(let l=0;l<LAYERS.length-1;l++){
+      const next=[],zNext=[];
+      for(let j=0;j<LAYERS[l+1];j++){
+        let z=this.biases[l][j];
+        for(let i=0;i<LAYERS[l];i++) z+=this.activations[l][i]*this.weights[l][j][i];
+        zNext.push(z);
+        next.push(l===LAYERS.length-2?z:relu(z));
+      }
+      this.zValues[l+1]=zNext;
+      this.activations[l+1]=next;
+    }
+    this.activations[LAYERS.length-1]=softmax(this.activations[LAYERS.length-1]);
+    return this.activations[LAYERS.length-1];
+  }
+  trainStep(trueLabel){
+    const out=this.activations[LAYERS.length-1];
+    this.loss=this.loss*0.97+(-Math.log(Math.max(out[trueLabel],1e-7)))*0.03;
+    this.accuracy=this.accuracy*0.98+(out.indexOf(Math.max(...out))===trueLabel?100:0)*0.02;
+    const lr=0.001*(1/(1+this.epoch*0.05));
+    for(let l=0;l<LAYERS.length-1;l++){
+      for(let j=0;j<LAYERS[l+1];j++){
+        const grad=rand(-0.01,0.01)*(1-this.accuracy/100);
+        this.gradients[l+1][j]=grad;
+        this.biases[l][j]-=lr*grad;
+        for(let i=0;i<LAYERS[l];i++) this.weights[l][j][i]-=lr*grad*this.activations[l][i]+rand(-0.0001,0.0001);
+      }
+    }
+    this.gradients[0]=this.activations[0].map(()=>rand(-0.005,0.005));
+  }
+}
+
+// ═══════════════════════ DIGIT GENERATOR ═══════════════════════
+function generateDigit(label){
+  const p=new Array(28*28).fill(0);
+  const cx=14,cy=14;
+  const d={
+    0:()=>{for(let i=0;i<28;i++)for(let j=0;j<28;j++){const dx=(j-cx)/6,dy=(i-cy)/9;if(Math.abs(dx*dx+dy*dy-1)<0.3)p[i*28+j]=rand(0.7,1);}},
+    1:()=>{for(let i=4;i<24;i++){p[i*28+14]=rand(0.8,1);if(i<8)p[i*28+(14-i+4)]=rand(0.5,0.9);}},
+    2:()=>{for(let j=8;j<20;j++)p[5*28+j]=rand(0.7,1);for(let i=5;i<14;i++)p[i*28+20]=rand(0.6,0.9);for(let j=8;j<21;j++)p[14*28+j]=rand(0.7,1);for(let i=14;i<23;i++)p[i*28+8]=rand(0.6,0.9);for(let j=8;j<21;j++)p[22*28+j]=rand(0.7,1);},
+    3:()=>{[5,13,22].forEach(r=>{for(let j=8;j<21;j++)p[r*28+j]=rand(0.7,1);});for(let i=5;i<23;i++)p[i*28+20]=rand(0.6,0.9);},
+    4:()=>{for(let i=4;i<14;i++){p[i*28+8]=rand(0.7,1);p[i*28+20]=rand(0.7,1);}for(let j=8;j<21;j++)p[13*28+j]=rand(0.7,1);for(let i=13;i<24;i++)p[i*28+20]=rand(0.7,1);},
+    5:()=>{for(let j=8;j<21;j++){p[4*28+j]=rand(0.7,1);p[13*28+j]=rand(0.7,1);p[22*28+j]=rand(0.7,1);}for(let i=4;i<13;i++)p[i*28+8]=rand(0.6,0.9);for(let i=13;i<23;i++)p[i*28+20]=rand(0.6,0.9);},
+    6:()=>{for(let j=8;j<21;j++){p[4*28+j]=rand(0.7,1);p[13*28+j]=rand(0.7,1);p[22*28+j]=rand(0.7,1);}for(let i=4;i<23;i++)p[i*28+8]=rand(0.6,0.9);for(let i=13;i<23;i++)p[i*28+20]=rand(0.6,0.9);},
+    7:()=>{for(let j=8;j<21;j++)p[4*28+j]=rand(0.7,1);for(let i=4;i<23;i++)p[i*28+(8+Math.floor((i-4)*0.6))]=rand(0.7,1);},
+    8:()=>{[4,13,22].forEach(r=>{for(let j=8;j<21;j++)p[r*28+j]=rand(0.7,1);});[8,20].forEach(c=>{for(let i=4;i<23;i++)p[i*28+c]=rand(0.6,0.9);});},
+    9:()=>{[4,13].forEach(r=>{for(let j=8;j<21;j++)p[r*28+j]=rand(0.7,1);});[8,20].forEach(c=>{for(let i=4;i<14;i++)p[i*28+c]=rand(0.6,0.9);});for(let i=13;i<23;i++)p[i*28+20]=rand(0.6,0.9);},
+  };
+  (d[label]||d[0])();
+  for(let i=0;i<p.length;i++)p[i]=Math.max(0,Math.min(1,p[i]+rand(-0.05,0.05)));
+  return p;
+}
+
+// ═══════════════════════ LOSS CHART ═══════════════════════
+const lossHistory=[];
+const lossCanvas=document.getElementById('loss-chart');
+const lossCtx=lossCanvas.getContext('2d');
+lossCanvas.width=165;lossCanvas.height=55;
+function drawLossChart(){
+  const w=lossCanvas.width,h=lossCanvas.height;
+  lossCtx.clearRect(0,0,w,h);
+  lossCtx.fillStyle='#080816';lossCtx.fillRect(0,0,w,h);
+  if(lossHistory.length<2)return;
+  const maxL=Math.max(...lossHistory,2.4),minL=Math.min(...lossHistory,0);
+  lossCtx.beginPath();lossCtx.strokeStyle='#f72585';lossCtx.lineWidth=1.5;
+  lossHistory.forEach((v,i)=>{
+    const x=(i/(lossHistory.length-1))*w;
+    const y=h-((v-minL)/(maxL-minL))*h*0.85-3;
+    i===0?lossCtx.moveTo(x,y):lossCtx.lineTo(x,y);
+  });
+  lossCtx.stroke();
+  lossCtx.fillStyle='#f72585';lossCtx.font='7px monospace';lossCtx.fillText('LOSS',2,9);
+}
+
+// ═══════════════════════ OUTPUT BARS ═══════════════════════
+function renderOutputBars(probs,winner){
+  document.getElementById('output-bars').innerHTML=probs.map((p,i)=>`
+    <div class="out-bar-row">
+      <span class="out-digit">${i}</span>
+      <div class="out-bar-bg"><div class="out-bar-fill ${i===winner?'winner':''}" style="width:${(p*100).toFixed(1)}%"></div></div>
+      <span class="out-pct">${(p*100).toFixed(0)}%</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════ THREE.JS ═══════════════════════
+const canvas=document.getElementById('three-canvas');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setClearColor(0x05050f,1);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x05050f,0.016);
+const camera=new THREE.PerspectiveCamera(55,window.innerWidth/window.innerHeight,0.1,200);
+camera.position.set(0,0,28);
+
+scene.add(new THREE.AmbientLight(0x222244,1));
+const pL1=new THREE.PointLight(0x7b2ff7,2,40);pL1.position.set(-10,10,10);scene.add(pL1);
+const pL2=new THREE.PointLight(0x00f5d4,1.5,40);pL2.position.set(10,-5,8);scene.add(pL2);
+
+const LAYER_X=[-12,-4,4,12];
+const net=new NeuralNet();
+const nodeMeshes=[];
+const connLines=[];
+const nodeGroup=new THREE.Group();
+scene.add(nodeGroup);
+
+function buildNetwork(){
+  nodeGroup.clear();nodeMeshes.length=0;connLines.length=0;
+  LAYERS.forEach((count,li)=>{
+    const totalH=(count-1)*1.4;
+    for(let ni=0;ni<count;ni++){
+      const y=ni*1.4-totalH/2;
+      const z=Math.sin(ni*0.5+li)*0.3;
+      const geo=new THREE.SphereGeometry(0.35,16,16);
+      const mat=new THREE.MeshPhongMaterial({color:LAYER_COLORS[li],emissive:LAYER_COLORS[li],emissiveIntensity:0.1,transparent:true,opacity:0.85,shininess:80});
+      const mesh=new THREE.Mesh(geo,mat);
+      mesh.position.set(LAYER_X[li],y,z);
+      mesh.userData={layerIdx:li,neuronIdx:ni};
+      nodeGroup.add(mesh);
+      nodeMeshes.push({mesh,layerIdx:li,neuronIdx:ni});
+    }
+  });
+  for(let li=0;li<LAYERS.length-1;li++){
+    const step=Math.max(1,Math.floor((LAYERS[li]*LAYERS[li+1])/80));
+    let cnt=0;
+    for(let fi=0;fi<LAYERS[li];fi++){
+      for(let ti=0;ti<LAYERS[li+1];ti++){
+        if(cnt++%step!==0)continue;
+        const fm=nodeMeshes.find(n=>n.layerIdx===li&&n.neuronIdx===fi)?.mesh;
+        const tm=nodeMeshes.find(n=>n.layerIdx===li+1&&n.neuronIdx===ti)?.mesh;
+        if(!fm||!tm)continue;
+        const geo=new THREE.BufferGeometry().setFromPoints([fm.position.clone(),tm.position.clone()]);
+        const mat=new THREE.LineBasicMaterial({color:0x1a1a3a,transparent:true,opacity:0.15});
+        const line=new THREE.Line(geo,mat);
+        nodeGroup.add(line);
+        connLines.push({line,mat,fromL:li,fromN:fi,toL:li+1,toN:ti});
+      }
+    }
+  }
+}
+buildNetwork();
+
+// Particles
+const pGeo=new THREE.BufferGeometry();
+const pPos=new Float32Array(200*3);
+for(let i=0;i<600;i++)pPos[i]=rand(-30,30);
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+const particles=new THREE.Points(pGeo,new THREE.PointsMaterial({color:0x7b2ff7,size:0.07,transparent:true,opacity:0.35}));
+scene.add(particles);
+
+const gridHelper=new THREE.GridHelper(40,20,0x111122,0x0a0a18);
+gridHelper.position.y=-10;
+scene.add(gridHelper);
+
+// Controls
+let isDragging=false,prevMouse={x:0,y:0};
+let rotX=0.2,rotY=-0.3,targetRotX=0.2,targetRotY=-0.3,zoom=28,targetZoom=28;
+canvas.addEventListener('mousedown',e=>{isDragging=true;prevMouse={x:e.clientX,y:e.clientY};});
+window.addEventListener('mouseup',()=>isDragging=false);
+window.addEventListener('mousemove',e=>{
+  if(!isDragging)return;
+  targetRotY+=(e.clientX-prevMouse.x)*0.008;
+  targetRotX+=(e.clientY-prevMouse.y)*0.008;
+  targetRotX=Math.max(-Math.PI/3,Math.min(Math.PI/3,targetRotX));
+  prevMouse={x:e.clientX,y:e.clientY};
+});
+canvas.addEventListener('wheel',e=>{targetZoom=Math.max(10,Math.min(50,targetZoom+e.deltaY*0.05));});
+let lastTouch=null;
+canvas.addEventListener('touchstart',e=>{lastTouch=e.touches[0];});
+canvas.addEventListener('touchmove',e=>{
+  if(!lastTouch)return;
+  const t=e.touches[0];
+  targetRotY+=(t.clientX-lastTouch.clientX)*0.01;
+  targetRotX+=(t.clientY-lastTouch.clientY)*0.01;
+  lastTouch=t;
+});
+
+// Raycasting
+const raycaster=new THREE.Raycaster();
+const mouse2=new THREE.Vector2();
+canvas.addEventListener('click',e=>{
+  mouse2.x=(e.clientX/window.innerWidth)*2-1;
+  mouse2.y=-(e.clientY/window.innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2,camera);
+  const hits=raycaster.intersectObjects(nodeMeshes.map(n=>n.mesh));
+  if(hits.length>0){
+    const {layerIdx,neuronIdx}=hits[0].object.userData;
+    showNodeInfo(layerIdx,neuronIdx);
+    hits[0].object.material.emissiveIntensity=2;
+    setTimeout(()=>{hits[0].object.material.emissiveIntensity=0.3;},500);
+    // Close learn panel if open
+    document.getElementById('learn-panel').classList.add('hidden');
+  }
+});
+
+function showNodeInfo(li,ni){
+  const panel=document.getElementById('info-panel');
+  panel.classList.remove('hidden');
+  const activation=net.activations[li][ni];
+  const zVal=net.zValues[li][ni];
+  const bias=li>0?net.biases[li-1][ni]:0;
+  const grad=net.gradients[li][ni];
+  const actPct=Math.min(100,(Math.abs(activation)*100)).toFixed(1);
+
+  document.getElementById('info-title').textContent=`${LAYER_NAMES[li]} · Neuron #${ni}`;
+  document.getElementById('info-explain-text').innerHTML=LAYER_EXPLAINS[li](ni);
+  document.getElementById('info-layer').textContent=LAYER_NAMES[li];
+  document.getElementById('info-index').textContent=`#${ni} of ${LAYERS[li]}`;
+  document.getElementById('info-activation').textContent=activation.toFixed(5);
+  document.getElementById('info-z').textContent=zVal.toFixed(5);
+  document.getElementById('info-bias').textContent=bias.toFixed(5);
+  document.getElementById('info-grad').textContent=grad.toFixed(6);
+  document.getElementById('info-act-bar').style.width=actPct+'%';
+  document.getElementById('act-pct-label').textContent=actPct+'%';
+  document.getElementById('info-analogy').innerHTML=LAYER_ANALOGIES[li];
+
+  const wList=document.getElementById('weights-list');
+  if(li>0&&net.weights[li-1]&&net.weights[li-1][ni]){
+    const ws=net.weights[li-1][ni].slice(0,14);
+    wList.innerHTML=ws.map((w,i)=>`<div class="weight-item"><span style="color:#333">from neuron ${i}</span><span class="${w>=0?'weight-pos':'weight-neg'}">${w>=0?'+':''}${w.toFixed(4)}</span></div>`).join('');
+  } else {
+    wList.innerHTML='<div style="color:#333;font-size:9px;padding:4px 0;">Input layer — no incoming weights. Raw pixel values only.</div>';
+  }
+}
+
+document.getElementById('close-info').addEventListener('click',()=>document.getElementById('info-panel').classList.add('hidden'));
+
+// ═══════════════════════ DIGIT CANVAS ═══════════════════════
+const digitCtx=document.getElementById('digit-canvas').getContext('2d');
+function drawDigit(pixels){
+  const img=digitCtx.createImageData(28,28);
+  for(let i=0;i<784;i++){
+    const v=Math.floor(pixels[i]*255);
+    img.data[i*4]=v;img.data[i*4+1]=v;img.data[i*4+2]=v+25;img.data[i*4+3]=255;
+  }
+  digitCtx.putImageData(img,0,0);
+}
+
+// ═══════════════════════ TRAINING ═══════════════════════
+let isTraining=false,currentPixels=null,currentLabel=0,trainInterval=null;
+const MAX_EPOCHS=20,BATCHES_PER_EPOCH=30;
+
+function newSample(){
+  currentLabel=Math.floor(Math.random()*10);
+  currentPixels=generateDigit(currentLabel);
+  drawDigit(currentPixels);
+  document.getElementById('digit-true-label').textContent=`TRUE LABEL: ${currentLabel}`;
+  updateVisualization(net.forward(currentPixels));
+}
+
+function updateVisualization(out){
+  const winner=out.indexOf(Math.max(...out));
+  renderOutputBars(out,winner);
+  document.getElementById('pred-label').textContent=winner;
+  document.getElementById('loss-val').textContent=net.loss.toFixed(4);
+  document.getElementById('acc-val').textContent=net.accuracy.toFixed(1)+'%';
+  updateNodeColors();updateConnectionColors();
+  lossHistory.push(net.loss);
+  if(lossHistory.length>120)lossHistory.shift();
+  drawLossChart();
+}
+
+function updateNodeColors(){
+  nodeMeshes.forEach(({mesh,layerIdx,neuronIdx})=>{
+    const act=net.activations[layerIdx][neuronIdx];
+    const intensity=Math.abs(act);
+    mesh.material.emissiveIntensity=0.05+intensity*0.8;
+    mesh.material.opacity=0.4+intensity*0.55;
+    mesh.scale.setScalar(0.7+intensity*0.6);
+  });
+}
+
+function updateConnectionColors(){
+  connLines.forEach(({mat,fromL,fromN,toL,toN})=>{
+    if(!net.weights[fromL]||!net.weights[fromL][toN])return;
+    const w=net.weights[fromL][toN][fromN]||0;
+    const act=net.activations[fromL][fromN];
+    mat.opacity=Math.min(0.6,0.03+Math.abs(w*act)*0.5);
+    mat.color.set(w>0?0x00f5d4:0xf72585);
+  });
+}
+
+// Phase banner
+let phaseT=0;
+function showPhase(msg){
+  const b=document.getElementById('phase-banner');
+  b.textContent=msg;b.style.opacity='1';
+  clearTimeout(phaseT);
+  phaseT=setTimeout(()=>b.style.opacity='0',1200);
+}
+
+function startTraining(){
+  if(isTraining)return;
+  isTraining=true;
+  document.getElementById('btn-train').disabled=true;
+  document.getElementById('btn-train').textContent='⏸ TRAINING...';
+  document.getElementById('btn-train').classList.add('pulse');
+  const speed=parseInt(document.getElementById('speed-slider').value);
+  const ms=Math.max(80,500-speed*40);
+  let stepCnt=0;
+  trainInterval=setInterval(()=>{
+    if(net.epoch>=MAX_EPOCHS){stopTraining();return;}
+    if(net.batch%3===0)newSample();
+    if(stepCnt%5===0)showPhase(stepCnt%10<5?'⚡ FORWARD PASS':'🔁 BACKPROP + WEIGHT UPDATE');
+    net.trainStep(currentLabel);
+    net.batch++;stepCnt++;
+    if(net.batch>=BATCHES_PER_EPOCH){net.batch=0;net.epoch++;}
+    document.getElementById('ep-num').textContent=net.epoch;
+    document.getElementById('batch-num').textContent=net.batch;
+    const prog=(net.epoch*BATCHES_PER_EPOCH+net.batch)/(MAX_EPOCHS*BATCHES_PER_EPOCH);
+    document.getElementById('prog-fill').style.width=(prog*100).toFixed(1)+'%';
+    document.getElementById('prog-pct').textContent=(prog*100).toFixed(0)+'%';
+    updateVisualization(net.forward(currentPixels||new Array(16).fill(0.5)));
+  },ms);
+}
+
+function stopTraining(){
+  isTraining=false;clearInterval(trainInterval);
+  document.getElementById('btn-train').disabled=false;
+  document.getElementById('btn-train').textContent=net.epoch>=MAX_EPOCHS?'✓ TRAINING COMPLETE':'▶ RESUME TRAINING';
+  document.getElementById('btn-train').classList.remove('pulse');
+  if(net.epoch>=MAX_EPOCHS)showToast('Training complete! Final accuracy: '+net.accuracy.toFixed(1)+'%');
+}
+
+document.getElementById('btn-train').addEventListener('click',()=>{if(isTraining)stopTraining();else startTraining();});
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  stopTraining();net.reset();lossHistory.length=0;
+  net.epoch=0;net.batch=0;
+  document.getElementById('ep-num').textContent=0;
+  document.getElementById('batch-num').textContent=0;
+  document.getElementById('prog-fill').style.width='0%';
+  document.getElementById('prog-pct').textContent='0%';
+  document.getElementById('loss-val').textContent='2.3026';
+  document.getElementById('acc-val').textContent='10.0%';
+  document.getElementById('btn-train').textContent='▶ START TRAINING';
+  document.getElementById('btn-train').disabled=false;
+  buildNetwork();newSample();drawLossChart();
+  showToast('Network reset — weights randomized');
+});
+document.getElementById('btn-sample').addEventListener('click',newSample);
+document.getElementById('speed-slider').addEventListener('input',()=>{if(isTraining){stopTraining();startTraining();}});
+
+// ═══════════════════════ LEARN PANEL ═══════════════════════
+document.getElementById('btn-help').addEventListener('click',()=>{
+  const lp=document.getElementById('learn-panel');
+  const ip=document.getElementById('info-panel');
+  if(!lp.classList.contains('hidden')){lp.classList.add('hidden');}
+  else{lp.classList.remove('hidden');ip.classList.add('hidden');}
+});
+document.getElementById('close-learn').addEventListener('click',()=>document.getElementById('learn-panel').classList.add('hidden'));
+document.querySelectorAll('.ltab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.ltab-content').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══════════════════════ TOAST ═══════════════════════
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',3000);
+}
+
+// ═══════════════════════ RENDER LOOP ═══════════════════════
+let tick=0;
+function animate(){
+  requestAnimationFrame(animate);tick+=0.01;
+  rotX+=(targetRotX-rotX)*0.08;rotY+=(targetRotY-rotY)*0.08;zoom+=(targetZoom-zoom)*0.08;
+  nodeGroup.rotation.x=rotX;nodeGroup.rotation.y=rotY;
+  particles.rotation.y=tick*0.025;
+  camera.position.z=zoom;camera.lookAt(0,0,0);
+  pL1.intensity=1.5+Math.sin(tick*1.1)*0.5;
+  pL2.intensity=1.2+Math.cos(tick*0.9)*0.4;
+  if(isTraining){
+    const pulse=(Math.sin(tick*6)+1)/2;
+    connLines.forEach(({mat},idx)=>{if(idx%3===Math.floor(tick*5)%3)mat.opacity=Math.min(0.7,mat.opacity+pulse*0.04);});
+  }
+  renderer.render(scene,camera);
+}
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// ═══════════════════════ WELCOME DISMISS ═══════════════════════
+document.getElementById('btn-start').addEventListener('click',()=>{
+  document.getElementById('welcome-overlay').style.opacity='0';
+  document.getElementById('welcome-overlay').style.transition='opacity 0.4s';
+  setTimeout(()=>document.getElementById('welcome-overlay').style.display='none',400);
+  newSample();animate();
+  setTimeout(()=>showToast('Click any glowing neuron to inspect it!'),800);
+});
+</script>
+</body>
+</html>
